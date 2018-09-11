@@ -2,11 +2,12 @@ import scipy.io
 import torch
 import torch.utils.data
 import torch.nn as nn
+import os
 from matplotlib import pyplot as plt
 import numpy as np
 import time
 
-t = time.time()
+t = time.time() # Start Timer
 
 class NeuralNet(nn.Module):
     """
@@ -30,14 +31,13 @@ class NeuralNet(nn.Module):
         out = self.fc3(out)
         out = self.tanh(out)
         out = self.fc4(out)
-
         return out
 
-class MyData(torch.utils.data.Dataset):
+class MyDataset(torch.utils.data.Dataset):
     """
     Custom-written Dataset Class for DataLoader.
     Inherit torch.utils.data.Dataset Abstract Class
-    Input Data must be in a tuple form. (X, y)
+    Input Data must be in a list form. [X, y]
     """
     def __init__(self, data):
         self.data = data
@@ -47,8 +47,7 @@ class MyData(torch.utils.data.Dataset):
     #override
     def __getitem__(self, idx):
         return [self.data[0][idx, :],
-                self.data[1][idx, :]]  # (spike data, XY Loc)
-        #return [torch.from_numpy(self.data[0][idx,:]).float(), torch.from_numpy(self.data[1][idx,:]).float()] # (spike data, XY Loc)
+                self.data[1][idx, :]]  # [spike data, XY Loc]
 
 class NNModel:
     """
@@ -67,7 +66,7 @@ class NNModel:
             self.CreateModel()
 
         # Generate Torch.utils.data.Dataset
-        train_dataset = MyData([torch.from_numpy(X_train).float(), torch.from_numpy(Y_train).float()])
+        train_dataset = MyDataset([torch.from_numpy(X_train).float(), torch.from_numpy(Y_train).float()])
 
         # Data loader
         train_loader = torch.utils.data.DataLoader(dataset=train_dataset,
@@ -101,7 +100,6 @@ class NNModel:
 
         # Loss and optimizer
         self.criterion = nn.MSELoss()
-        #self.optimizer = torch.optim.Adam(self.model.parameters(), lr=learning_rate)
         self.optimizer = torch.optim.SGD(self.model.parameters(),lr = learning_rate, momentum = 0.9, weight_decay=0e-6, nesterov=True)
 
 
@@ -113,7 +111,9 @@ class NNModel:
 learning_rate = 0.0001
 
 # Loading data from data.mat file
-data = scipy.io.loadmat(r'.\data.mat')
+if not(os.path.isfile(r'.\data.mat')):
+    raise Exception('No File Error','data.mat file must be in the same path')
+data = scipy.io.loadmat(r'.\datad.mat')
 train = data['train'].T
 valid = data['test'].T
 loc_t = data['train_loc'].T
@@ -121,17 +121,21 @@ loc_v = data['test_loc'].T
 
 
 # Device configuration
-print(torch.cuda.is_available())
-#device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-device = torch.device('cuda')
-
+if torch.cuda.is_available():
+    print('CUDA is available')
+    print('Running in CUDA....')
+    device = torch.device('cuda')
+else:
+    print('CUDA is unavailable')
+    print('Running in CPU....')
+    device = torch.device('cpu')
 
 # Build and Train the Model with training dataset
 nnModel = NNModel()
 nnModel.Train(train, loc_t)
 
 # Create Testing data for validation
-test_dataset = MyData((torch.from_numpy(valid).float(), torch.from_numpy(loc_v).float()))
+test_dataset = MyDataset((torch.from_numpy(valid).float(), torch.from_numpy(loc_v).float()))
 test_loader = torch.utils.data.DataLoader(dataset=test_dataset,
                                           batch_size=1,
                                           shuffle=False)
@@ -158,4 +162,4 @@ with torch.no_grad(): # with-out tuning parameters
 #     plt.title(str(i))
 #     plt.pause(0.000000001)
 #     plt.clf()
-print(time.time() -t)
+print(time.time() -t) # stop timer and print elapsed time
