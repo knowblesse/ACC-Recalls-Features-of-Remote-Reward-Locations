@@ -7,6 +7,7 @@ import numpy as np
 import time
 
 t = time.time()
+
 class NeuralNet(nn.Module):
     """
     Pytorch Neural Net Model Class
@@ -45,8 +46,9 @@ class MyData(torch.utils.data.Dataset):
         return self.data[0].shape[0]
     #override
     def __getitem__(self, idx):
-        return (torch.from_numpy(self.data[0][idx,:]).float(), torch.from_numpy(self.data[1][idx,:]).float()) # (spike data, XY Loc)
-
+        return [self.data[0][idx, :],
+                self.data[1][idx, :]]  # (spike data, XY Loc)
+        #return [torch.from_numpy(self.data[0][idx,:]).float(), torch.from_numpy(self.data[1][idx,:]).float()] # (spike data, XY Loc)
 
 class NNModel:
     """
@@ -65,7 +67,7 @@ class NNModel:
             self.CreateModel()
 
         # Generate Torch.utils.data.Dataset
-        train_dataset = MyData((X_train, Y_train))
+        train_dataset = MyData([torch.from_numpy(X_train).float(), torch.from_numpy(Y_train).float()])
 
         # Data loader
         train_loader = torch.utils.data.DataLoader(dataset=train_dataset,
@@ -88,7 +90,7 @@ class NNModel:
                 loss.backward()
                 self.optimizer.step()
 
-                if (i + 1) % 100 == 0:
+                if (i + 1) % 50 == 0:
                     print('Epoch [{}/{}], Step [{}/{}], Loss: {:.4f}'
                           .format(epoch + 1, self.num_epochs, i + 1, total_step, loss.item()))
 
@@ -99,7 +101,8 @@ class NNModel:
 
         # Loss and optimizer
         self.criterion = nn.MSELoss()
-        self.optimizer = torch.optim.Adam(self.model.parameters(), lr=learning_rate)
+        #self.optimizer = torch.optim.Adam(self.model.parameters(), lr=learning_rate)
+        self.optimizer = torch.optim.SGD(self.model.parameters(),lr = learning_rate, momentum = 0.9, weight_decay=0e-6, nesterov=True)
 
 
 ##############################################################
@@ -107,7 +110,7 @@ class NNModel:
 ##############################################################
 
 # Hyper-parameters
-learning_rate = 0.001
+learning_rate = 0.0001
 
 # Loading data from data.mat file
 data = scipy.io.loadmat(r'.\data.mat')
@@ -128,7 +131,7 @@ nnModel = NNModel()
 nnModel.Train(train, loc_t)
 
 # Create Testing data for validation
-test_dataset = MyData((valid, loc_v))
+test_dataset = MyData((torch.from_numpy(valid).float(), torch.from_numpy(loc_v).float()))
 test_loader = torch.utils.data.DataLoader(dataset=test_dataset,
                                           batch_size=1,
                                           shuffle=False)
